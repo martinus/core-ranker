@@ -1,9 +1,14 @@
 #!/bin/bash
-taskset -c 1 stress-ng --cpu 1 --cpu-method fft --timeout 10s --metrics-brief 2>&1 | awk '/^[^:]*: metrc: .* cpu[[:space:]]/ {print "A " $(NF-1); exit}'
-taskset -c 8 stress-ng --cpu 1 --cpu-method fft --timeout 10s --metrics-brief 2>&1 | awk '/^[^:]*: metrc: .* cpu[[:space:]]/ {print "B " $(NF-1); exit}'
-taskset -c 1 stress-ng --cpu 1 --cpu-method fft --timeout 10s --metrics-brief 2>&1 | awk '/^[^:]*: metrc: .* cpu[[:space:]]/ {print "A " $(NF-1); exit}'
-taskset -c 8 stress-ng --cpu 1 --cpu-method fft --timeout 10s --metrics-brief 2>&1 | awk '/^[^:]*: metrc: .* cpu[[:space:]]/ {print "B " $(NF-1); exit}'
-taskset -c 1 stress-ng --cpu 1 --cpu-method fft --timeout 10s --metrics-brief 2>&1 | awk '/^[^:]*: metrc: .* cpu[[:space:]]/ {print "A " $(NF-1); exit}'
-taskset -c 8 stress-ng --cpu 1 --cpu-method fft --timeout 10s --metrics-brief 2>&1 | awk '/^[^:]*: metrc: .* cpu[[:space:]]/ {print "B " $(NF-1); exit}'
-taskset -c 1 stress-ng --cpu 1 --cpu-method fft --timeout 10s --metrics-brief 2>&1 | awk '/^[^:]*: metrc: .* cpu[[:space:]]/ {print "A " $(NF-1); exit}'
-taskset -c 8 stress-ng --cpu 1 --cpu-method fft --timeout 10s --metrics-brief 2>&1 | awk '/^[^:]*: metrc: .* cpu[[:space:]]/ {print "B " $(NF-1); exit}'
+A=16
+B=31
+BENCH_DURATION=10s
+SLEEP_DURATION=2
+for i in $(seq 1 10);
+do
+    CPU=$A
+    sleep $SLEEP_DURATION
+    taskset -c $CPU stress-ng --matrix 1 --timeout $BENCH_DURATION --metrics-brief 2>&1 | awk -v CPU="$CPU" '/^[^:]*: metrc: .* matrix[[:space:]]/ {print $(NF-1) " " CPU; exit}'
+    CPU=$B
+    sleep $SLEEP_DURATION
+    taskset -c $CPU stress-ng --matrix 1 --timeout $BENCH_DURATION --metrics-brief 2>&1 | awk -v CPU="$CPU" '/^[^:]*: metrc: .* matrix[[:space:]]/ {print $(NF-1) " " CPU; exit}'
+done
