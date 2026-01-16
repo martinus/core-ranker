@@ -1,65 +1,81 @@
 #!/usr/bin/env python3
-import os
-import glob
+from pathlib import Path
 
 # --- 0BSD License ---
-# Permission to use, copy, modify, and/or distribute this software for any 
+# Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted.
 
-def get_cpu_info():
+CPU_BASE = Path("/sys/devices/system/cpu")
+
+
+def read_int(path: Path) -> int | None:
+    """Read an integer from a sysfs file, returning None on failure."""
+    try:
+        return int(path.read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def get_rank(cpu_path: Path) -> int:
+    """Determine CPU performance rank from various sysfs sources."""
+    # Try AMD CPPC
+    if (rank := read_int(cpu_path / "acpi_cppc/highest_perf")) is not None:
+        return rank
+    # Try Intel ITMT score
+    if (rank := read_int(cpu_path / "topology/itmt_score")) is not None:
+        return rank
+    # Try Intel base frequency (convert kHz to MHz)
+    if (freq := read_int(cpu_path / "cpufreq/base_frequency")) is not None:
+        return freq // 1000
+    # Fallback to core_id
+    if (rank := read_int(cpu_path / "topology/core_id")) is not None:
+        return rank
+    return 100
+
+
+def is_smt_thread(cpu_path: Path, cpu_id: int) -> bool:
+    """Check if this CPU is an SMT/Hyperthread (not the first thread of its core)."""
+    sibling_file = cpu_path / "topology/thread_siblings_list"
+    if not sibling_file.exists():
+        return False
+    try:
+        siblings = sorted(
+            int(x) for x in sibling_file.read_text().strip().replace("-", ",").split(",")
+        )
+        return cpu_id != siblings[0]
+    except (OSError, ValueError):
+        return False
+
+
+def get_cpu_info() -> dict[int, dict]:
+    """Gather rank and SMT status for all CPUs."""
+    import os
     data = {}
-    rank_files = glob.glob("/sys/devices/system/cpu/cpu[0-9]*/acpi_cppc/highest_perf")
-    
-    # Fallback if CPPC is missing (e.g. some Intel/Legacy)
-    if not rank_files:
-        logical_count = os.cpu_count()
-        rank_files = [f"/sys/devices/system/cpu/cpu{i}/topology/core_id" for i in range(logical_count)]
-
-    for path in rank_files:
-        cpu_id = int(path.split('/')[-3].replace('cpu', ''))
-        
-        # Determine Rank (Performance Ranking)
-        try:
-            with open(path, 'r') as f:
-                rank = int(f.read().strip())
-        except: rank = 100
-
-        # Determine SMT Status
-        is_smt = False
-        sibling_file = f"/sys/devices/system/cpu/cpu{cpu_id}/topology/thread_siblings_list"
-        if os.path.exists(sibling_file):
-            with open(sibling_file, 'r') as f:
-                siblings = sorted([int(x) for x in f.read().strip().replace('-',',').split(',')])
-                if cpu_id != siblings[0]:
-                    is_smt = True
-        
-        data[cpu_id] = {'rank': rank, 'is_smt': is_smt}
+    for cpu_id in range(os.cpu_count() or 0):
+        cpu_path = CPU_BASE / f"cpu{cpu_id}"
+        data[cpu_id] = {
+            "rank": get_rank(cpu_path),
+            "is_smt": is_smt_thread(cpu_path, cpu_id),
+        }
     return data
+
 
 def main():
     info = get_cpu_info()
+
+    # Physical cores first, then SMT/Hyperthreads; within groups, highest rank first
+    sorted_cpus = sorted(info.items(), key=lambda x: (x[1]["is_smt"], -x[1]["rank"]))
+
+    print(f"{'cpuid':<4} | {'Rank':<4} | {'Status'}")
+    print("------+------+----------")
     
-    # SCORING LOGIC:
-    # We want: Physical P > Physical E > SMT P > SMT E
-    # We create a sort key: (is_smt, -rank)
-    # This puts all Physical cores (is_smt=0) before all SMT cores (is_smt=1)
-    # Within those groups, it sorts by performance rank.
-    sorted_cpus = sorted(info.items(), key=lambda x: (x[1]['is_smt'], -x[1]['rank']))
-
-    print(f"{'CPU ID':<8} | {'Rank':<6} | {'Status':<10} | {'Type'}")
-    print("-" * 48)
-
-    max_r = max(v['rank'] for v in info.values())
-    min_r = min(v['rank'] for v in info.values())
-    mid = min_r + (max_r - min_r) / 2
-
     for cpu_id, meta in sorted_cpus:
-        c_type = "Performance" if meta['rank'] > mid else "Efficiency"
-        status = "SMT/Log" if meta['is_smt'] else "Physical"
-        print(f"cpu{cpu_id:<5} | {meta['rank']:<6} | {status:<10} | {c_type}")
+        status = "SMT/HT" if meta["is_smt"] else "Physical"
+        print(f"{cpu_id:>5} | {meta['rank']:>4} | {status}")
 
     print("\nSorted list for taskset:")
     print(",".join(str(x[0]) for x in sorted_cpus))
+
 
 if __name__ == "__main__":
     main()
