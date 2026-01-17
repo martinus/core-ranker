@@ -23,10 +23,10 @@ class CpuInfo:
 
 @dataclass
 class CoreInfo:
-    rank: int
-    siblings: tuple[int, ...]
-    min_MHz: int
-    max_MHz: int
+    rank: int = 0
+    siblings: tuple[int, ...] = ()
+    min_MHz: int = 0
+    max_MHz: int = 0
 
 
 def read_str(path: Path) -> str | None:
@@ -61,18 +61,22 @@ def get_cpu_info() -> CpuInfo:
             if m == None:
                 break
 
-            match (m.group(1)):
+            match m.group(1):
                 case "model name":
                     cpu_info.model_name = m.group(2).strip()
 
     if (boost := read_int(POLICY_BASE / "boost")) is not None:
         cpu_info.boost = "Enabled" if boost == 1 else "Disabled"
+    elif (no_turbo := read_int(CPU_BASE / "intel_pstate/no_turbo")) is not None:
+        cpu_info.boost = "Enabled" if no_turbo == 0 else "Disabled"
 
     if (governor := read_str(POLICY_BASE / "scaling_governor")) is not None:
         cpu_info.governor = governor.strip()
 
     if (governor := read_str(POLICY_BASE / "scaling_available_governors")) is not None:
-        cpu_info.available_governors = tuple([g.strip() for g in governor.strip().split(" ")])
+        cpu_info.available_governors = tuple(
+            [g.strip() for g in governor.strip().split(" ")]
+        )
 
     if (driver := read_str(POLICY_BASE / "scaling_driver")) is not None:
         cpu_info.driver = driver.strip()
@@ -155,7 +159,7 @@ def cores_as_markdown(cores: list[CoreInfo]) -> str:
 def main() -> None:
     cpu_info: CpuInfo = get_cpu_info()
     print(f"{cpu_info.model_name}")
-    print(f"Governor: {cpu_info.governor} ({", ".join(cpu_info.available_governors)})")
+    print(f"Governor: {cpu_info.governor} ({', '.join(cpu_info.available_governors)})")
     print(f"Driver:   {cpu_info.driver}")
     print(f"Turbo:    {cpu_info.boost}")
     print()
