@@ -124,10 +124,7 @@ def get_core_cpus() -> list[CoreInfo]:
                     threads.append(int(part))
             unique_cores.add(tuple(sorted(threads)))
 
-    cores = [CoreInfo(siblings=cpus) for cpus in unique_cores]
-    # sorts highest rank first, then ordered by siblings in increasing order"
-    cores.sort(key=lambda core: (-core.rank, core.siblings))
-    return cores
+    return [CoreInfo(siblings=cpus) for cpus in unique_cores]
 
 
 def get_rank(cpu_path: Path) -> int:
@@ -185,6 +182,10 @@ def main() -> None:
 
     cores: list[CoreInfo] = get_core_cpus()
     update_cores(cores)
+    # now that we have the ranks, we can sort properly:
+    # Highest rank first, then ordered by siblings in increasing order"
+    cores.sort(key=lambda core: (-core.rank, core.siblings))
+
     print(cpu_info)
     print()
     print(cores_as_markdown(cores))
