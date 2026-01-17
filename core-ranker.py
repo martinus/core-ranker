@@ -1,12 +1,23 @@
 #!/usr/bin/env python3
+
+"""
+A utility to print CPU topology and performance ranking information.
+
+This script parses Linux sysfs and /proc/cpuinfo to display:
+- CPU model, governor, and turbo status.
+- Core rankings (performance order used by the scheduler).
+- Sibling cores (SMT/Hyper-Threading pairs).
+- Min and max frequencies per core group.
+
+--- 0BSD License ---
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted.
+"""
+
 from dataclasses import dataclass
-import os
 from pathlib import Path
 import re
 
-# --- 0BSD License ---
-# Permission to use, copy, modify, and/or distribute this software for any
-# purpose with or without fee is hereby granted.
 
 CPU_BASE = Path("/sys/devices/system/cpu")
 POLICY_BASE = Path("/sys/devices/system/cpu/cpufreq/policy0")
@@ -14,6 +25,8 @@ POLICY_BASE = Path("/sys/devices/system/cpu/cpufreq/policy0")
 
 @dataclass
 class CpuInfo:
+    """Generic CPU information"""
+
     model_name: str = "unknown"
     driver: str = "unknown"
     governor: str = "unknown"
@@ -23,10 +36,12 @@ class CpuInfo:
 
 @dataclass
 class CoreInfo:
+    """Information per CPU core"""
+
     rank: int = 0
     siblings: tuple[int, ...] = ()
-    min_MHz: int = 0
-    max_MHz: int = 0
+    min_mhz: int = 0
+    max_mhz: int = 0
 
 
 def read_str(path: Path) -> str | None:
@@ -49,16 +64,17 @@ def read_int(path: Path) -> int | None:
 
 
 def get_cpu_info() -> CpuInfo:
+    """Fetch CPU info data"""
     cpu_info = CpuInfo(model_name="unknown")
 
     # /proc/cpuinfo
     pattern = re.compile(r"([^:\t]*)\s*: (.*)")
-    with open("/proc/cpuinfo") as f:
+    with Path("/proc/cpuinfo").open(encoding="utf8") as f:
         for line in f:
             m = pattern.match(line)
 
             # reads until empty line (no match, then next processor follows)
-            if m == None:
+            if m is None:
                 break
 
             match m.group(1):
@@ -85,27 +101,22 @@ def get_cpu_info() -> CpuInfo:
 
 def get_core_cpus() -> list[CoreInfo]:
     """Creates a list of CoreInfo, where core_siblings is filled. rank is dummy value 0."""
-    base_path = "/sys/devices/system/cpu/"
     unique_cores = set()
-    cpu_dirs = [d for d in os.listdir(base_path) if re.match(r"cpu\d+", d)]
 
-    for cpu_dir in cpu_dirs:
-        path = os.path.join(base_path, cpu_dir, "topology/thread_siblings_list")
-        if os.path.exists(path):
-            with open(path, "r") as f:
-                content = f.read().strip()
-                threads: list[int] = []
-                for part in content.split(","):
-                    if "-" in part:
-                        start, end = map(int, part.split("-"))
-                        threads.extend(range(start, end + 1))
-                    else:
-                        threads.append(int(part))
-                unique_cores.add(tuple(sorted(threads)))
-    ret: list[CoreInfo] = []
-    for cpus in list(unique_cores):
-        ret.append(CoreInfo(rank=0, siblings=cpus, min_MHz=0, max_MHz=0))
-    return ret
+    for cpu_dir in CPU_BASE.iterdir():
+        if (
+            threads_str := read_str(cpu_dir / "topology/thread_siblings_list")
+        ) is not None:
+            threads: list[int] = []
+            for part in threads_str.strip().split(","):
+                if "-" in part:
+                    start, end = map(int, part.split("-"))
+                    threads.extend(range(start, end + 1))
+                else:
+                    threads.append(int(part))
+            unique_cores.add(tuple(sorted(threads)))
+
+    return [CoreInfo(siblings=cpus) for cpus in unique_cores]
 
 
 def sort(cores: list[CoreInfo]) -> None:
@@ -131,32 +142,35 @@ def get_rank(cpu_path: Path) -> int:
 
 
 def update_ranks(cores: list[CoreInfo]) -> None:
+    """Update each core's rank"""
     for core in cores:
-        cpu_path = CPU_BASE / f"cpu{core.siblings[0]}"
-        core.rank = get_rank(cpu_path)
+        core.rank = get_rank(CPU_BASE / f"cpu{core.siblings[0]}")
 
 
 def update_frequencies(cores: list[CoreInfo]) -> None:
+    """updates min and max frequency of each core"""
     for core in cores:
         cpu_path = CPU_BASE / f"cpu{core.siblings[0]}"
         if (freq := read_int(cpu_path / "cpufreq/cpuinfo_min_freq")) is not None:
-            core.min_MHz = freq // 1000
+            core.min_mhz = freq // 1000
         if (freq := read_int(cpu_path / "cpufreq/cpuinfo_max_freq")) is not None:
-            core.max_MHz = freq // 1000
+            core.max_mhz = freq // 1000
 
 
 def cores_as_markdown(cores: list[CoreInfo]) -> str:
+    """Prints a nice markdown table for the information of all cores"""
     out = str()
     out += "Rank | CPU IDs | MHz min | MHz max\n----:|:--------|--------:|--------:\n"
     for core in cores:
         siblings_str = ", ".join([f"{sibling:>2}" for sibling in core.siblings])
         out += (
-            f"{core.rank:>4} |{siblings_str:>8} |{core.min_MHz:>8} |{core.max_MHz:>8}\n"
+            f"{core.rank:>4} |{siblings_str:>8} |{core.min_mhz:>8} |{core.max_mhz:>8}\n"
         )
     return out
 
 
 def main() -> None:
+    """Prints the full CPU information"""
     cpu_info: CpuInfo = get_cpu_info()
     print(f"{cpu_info.model_name}")
     print(f"Governor: {cpu_info.governor} ({', '.join(cpu_info.available_governors)})")
