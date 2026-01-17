@@ -9,11 +9,16 @@ import re
 # purpose with or without fee is hereby granted.
 
 CPU_BASE = Path("/sys/devices/system/cpu")
+POLICY_BASE = Path("/sys/devices/system/cpu/cpufreq/policy0")
 
 
 @dataclass
 class CpuInfo:
-    model_name: str
+    model_name: str = "unknown"
+    driver: str = "unknown"
+    governor: str = "unknown"
+    available_governors: tuple[str, ...] = ()
+    boost: str = "unknown"
 
 
 @dataclass
@@ -24,12 +29,54 @@ class CoreInfo:
     max_MHz: int
 
 
+def read_str(path: Path) -> str | None:
+    """Read a string from a sysfs file, returning None on failure."""
+    try:
+        return path.read_text()
+    except OSError:
+        return None
+
+
 def read_int(path: Path) -> int | None:
     """Read an integer from a sysfs file, returning None on failure."""
     try:
-        return int(path.read_text().strip())
-    except (OSError, ValueError):
-        return None
+        if (data := read_str(path)) is not None:
+            return int(data.strip())
+    except ValueError:
+        pass
+
+    return None
+
+
+def get_cpu_info() -> CpuInfo:
+    cpu_info = CpuInfo(model_name="unknown")
+
+    # /proc/cpuinfo
+    pattern = re.compile(r"([^:\t]*)\s*: (.*)")
+    with open("/proc/cpuinfo") as f:
+        for line in f:
+            m = pattern.match(line)
+
+            # reads until empty line (no match, then next processor follows)
+            if m == None:
+                break
+
+            match (m.group(1)):
+                case "model name":
+                    cpu_info.model_name = m.group(2).strip()
+
+    if (boost := read_int(POLICY_BASE / "boost")) is not None:
+        cpu_info.boost = "Enabled" if boost == 1 else "Disabled"
+
+    if (governor := read_str(POLICY_BASE / "scaling_governor")) is not None:
+        cpu_info.governor = governor.strip()
+
+    if (governor := read_str(POLICY_BASE / "scaling_available_governors")) is not None:
+        cpu_info.available_governors = tuple([g.strip() for g in governor.split(" ")])
+
+    if (driver := read_str(POLICY_BASE / "scaling_driver")) is not None:
+        cpu_info.driver = driver.strip()
+    return cpu_info
 
 
 def get_core_cpus() -> list[CoreInfo]:
@@ -106,6 +153,13 @@ def cores_as_markdown(cores: list[CoreInfo]) -> str:
 
 
 def main() -> None:
+    cpu_info: CpuInfo = get_cpu_info()
+    print(f"{cpu_info.model_name}")
+    print(f"Governor: {cpu_info.governor} ({", ".join(cpu_info.available_governors)})")
+    print(f"Driver:   {cpu_info.driver}")
+    print(f"Turbo:    {cpu_info.boost}")
+    print()
+
     cores: list[CoreInfo] = get_core_cpus()
     update_ranks(cores)
     update_frequencies(cores)
