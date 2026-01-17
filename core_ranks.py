@@ -71,7 +71,7 @@ def get_cpu_info() -> CpuInfo:
     pattern = re.compile(r"([^:\t]*)\s*: (.*)")
     with Path("/proc/cpuinfo").open(encoding="utf8") as f:
         for line in f:
-            m = pattern.match(line)
+            m: re.Match[str] | None = pattern.match(line)
 
             # reads until empty line (no match, then next processor follows)
             if m is None:
@@ -141,20 +141,24 @@ def get_rank(cpu_path: Path) -> int:
     return 100
 
 
-def update_ranks(cores: list[CoreInfo]) -> None:
-    """Update each core's rank"""
-    for core in cores:
-        core.rank = get_rank(CPU_BASE / f"cpu{core.siblings[0]}")
-
-
-def update_frequencies(cores: list[CoreInfo]) -> None:
+def get_min_max_frequencies(cpu_path: Path) -> tuple[int, ...]:
     """updates min and max frequency of each core"""
+    min_mhz = 0
+    max_mhz = 0
+    if (freq := read_int(cpu_path / "cpufreq/cpuinfo_min_freq")) is not None:
+        min_mhz = freq // 1000
+    if (freq := read_int(cpu_path / "cpufreq/cpuinfo_max_freq")) is not None:
+        max_mhz = freq // 1000
+
+    return (min_mhz, max_mhz)
+
+
+def update_cores(cores):
+    """Updates per-core information, reading only the first sibling's information"""
     for core in cores:
         cpu_path = CPU_BASE / f"cpu{core.siblings[0]}"
-        if (freq := read_int(cpu_path / "cpufreq/cpuinfo_min_freq")) is not None:
-            core.min_mhz = freq // 1000
-        if (freq := read_int(cpu_path / "cpufreq/cpuinfo_max_freq")) is not None:
-            core.max_mhz = freq // 1000
+        core.rank = get_rank(cpu_path)
+        core.min_mhz, core.max_mhz = get_min_max_frequencies(cpu_path)
 
 
 def cores_as_markdown(cores: list[CoreInfo]) -> str:
@@ -179,8 +183,7 @@ def main() -> None:
     print()
 
     cores: list[CoreInfo] = get_core_cpus()
-    update_ranks(cores)
-    update_frequencies(cores)
+    update_cores(cores)
     sort(cores)
     print(f"{cores_as_markdown(cores)}")
 
