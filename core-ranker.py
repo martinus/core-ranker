@@ -72,7 +72,7 @@ def get_cpu_info() -> CpuInfo:
         cpu_info.governor = governor.strip()
 
     if (governor := read_str(POLICY_BASE / "scaling_available_governors")) is not None:
-        cpu_info.available_governors = tuple([g.strip() for g in governor.split(" ")])
+        cpu_info.available_governors = tuple([g.strip() for g in governor.strip().split(" ")])
 
     if (driver := read_str(POLICY_BASE / "scaling_driver")) is not None:
         cpu_info.driver = driver.strip()
