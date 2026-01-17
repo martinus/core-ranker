@@ -33,6 +33,14 @@ class CpuInfo:
     available_governors: tuple[str, ...] = ()
     boost: str = "unknown"
 
+    def __str__(self) -> str:
+        out = str()
+        out += f"{self.model_name}"
+        out += f"\nGovernor: {self.governor} ({', '.join(self.available_governors)})"
+        out += f"\nDriver:   {self.driver}"
+        out += f"\nTurbo:    {self.boost}"
+        return out
+
 
 @dataclass
 class CoreInfo:
@@ -174,14 +182,11 @@ def cores_as_markdown(cores: list[CoreInfo]) -> str:
 def main() -> None:
     """Prints the full CPU information"""
     cpu_info: CpuInfo = get_cpu_info()
-    print(f"{cpu_info.model_name}")
-    print(f"Governor: {cpu_info.governor} ({', '.join(cpu_info.available_governors)})")
-    print(f"Driver:   {cpu_info.driver}")
-    print(f"Turbo:    {cpu_info.boost}")
-    print()
 
     cores: list[CoreInfo] = get_core_cpus()
     update_cores(cores)
+    print(cpu_info)
+    print()
     print(cores_as_markdown(cores))
 
 
