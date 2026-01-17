@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
+from dataclasses import dataclass
+import os
 from pathlib import Path
+import re
 
 # --- 0BSD License ---
 # Permission to use, copy, modify, and/or distribute this software for any
@@ -8,12 +11,55 @@ from pathlib import Path
 CPU_BASE = Path("/sys/devices/system/cpu")
 
 
+@dataclass
+class CpuInfo:
+    model_name: str
+
+
+@dataclass
+class CoreInfo:
+    rank: int
+    siblings: tuple[int, ...]
+    min_MHz: int
+    max_MHz: int
+
+
 def read_int(path: Path) -> int | None:
     """Read an integer from a sysfs file, returning None on failure."""
     try:
         return int(path.read_text().strip())
     except (OSError, ValueError):
         return None
+
+
+def get_core_cpus() -> list[CoreInfo]:
+    """Creates a list of CoreInfo, where core_siblings is filled. rank is dummy value 0."""
+    base_path = "/sys/devices/system/cpu/"
+    unique_cores = set()
+    cpu_dirs = [d for d in os.listdir(base_path) if re.match(r"cpu\d+", d)]
+
+    for cpu_dir in cpu_dirs:
+        path = os.path.join(base_path, cpu_dir, "topology/thread_siblings_list")
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                content = f.read().strip()
+                threads: list[int] = []
+                for part in content.split(","):
+                    if "-" in part:
+                        start, end = map(int, part.split("-"))
+                        threads.extend(range(start, end + 1))
+                    else:
+                        threads.append(int(part))
+                unique_cores.add(tuple(sorted(threads)))
+    ret: list[CoreInfo] = []
+    for cpus in list(unique_cores):
+        ret.append(CoreInfo(rank=0, siblings=cpus, min_MHz=0, max_MHz=0))
+    return ret
+
+
+def sort(cores: list[CoreInfo]) -> None:
+    """Sorts highest rank first, then ordered by siblings in increasing order"""
+    cores.sort(key=lambda core: (-core.rank, core.siblings))
 
 
 def get_rank(cpu_path: Path) -> int:
@@ -33,48 +79,38 @@ def get_rank(cpu_path: Path) -> int:
     return 100
 
 
-def is_smt_thread(cpu_path: Path, cpu_id: int) -> bool:
-    """Check if this CPU is an SMT/Hyperthread (not the first thread of its core)."""
-    sibling_file = cpu_path / "topology/thread_siblings_list"
-    if not sibling_file.exists():
-        return False
-    try:
-        siblings = sorted(
-            int(x) for x in sibling_file.read_text().strip().replace("-", ",").split(",")
+def update_ranks(cores: list[CoreInfo]) -> None:
+    for core in cores:
+        cpu_path = CPU_BASE / f"cpu{core.siblings[0]}"
+        core.rank = get_rank(cpu_path)
+
+
+def update_frequencies(cores: list[CoreInfo]) -> None:
+    for core in cores:
+        cpu_path = CPU_BASE / f"cpu{core.siblings[0]}"
+        if (freq := read_int(cpu_path / "cpufreq/cpuinfo_min_freq")) is not None:
+            core.min_MHz = freq // 1000
+        if (freq := read_int(cpu_path / "cpufreq/cpuinfo_max_freq")) is not None:
+            core.max_MHz = freq // 1000
+
+
+def cores_as_markdown(cores: list[CoreInfo]) -> str:
+    out = str()
+    out += "Rank | CPU IDs | MHz min | MHz max\n----:|:--------|--------:|--------:\n"
+    for core in cores:
+        siblings_str = ", ".join([f"{sibling:>2}" for sibling in core.siblings])
+        out += (
+            f"{core.rank:>4} |{siblings_str:>8} |{core.min_MHz:>8} |{core.max_MHz:>8}\n"
         )
-        return cpu_id != siblings[0]
-    except (OSError, ValueError):
-        return False
+    return out
 
 
-def get_cpu_info() -> dict[int, dict]:
-    """Gather rank and SMT status for all CPUs."""
-    import os
-    data = {}
-    for cpu_id in range(os.cpu_count() or 0):
-        cpu_path = CPU_BASE / f"cpu{cpu_id}"
-        data[cpu_id] = {
-            "rank": get_rank(cpu_path),
-            "is_smt": is_smt_thread(cpu_path, cpu_id),
-        }
-    return data
-
-
-def main():
-    info = get_cpu_info()
-
-    # Physical cores first, then SMT/Hyperthreads; within groups, highest rank first
-    sorted_cpus = sorted(info.items(), key=lambda x: (x[1]["is_smt"], -x[1]["rank"]))
-
-    print(f"{'cpuid':<4} | {'Rank':<4} | {'Status'}")
-    print("------+------+----------")
-    
-    for cpu_id, meta in sorted_cpus:
-        status = "SMT/HT" if meta["is_smt"] else "Physical"
-        print(f"{cpu_id:>5} | {meta['rank']:>4} | {status}")
-
-    print("\nSorted list for taskset:")
-    print(",".join(str(x[0]) for x in sorted_cpus))
+def main() -> None:
+    cores: list[CoreInfo] = get_core_cpus()
+    update_ranks(cores)
+    update_frequencies(cores)
+    sort(cores)
+    print(f"{cores_as_markdown(cores)}")
 
 
 if __name__ == "__main__":
