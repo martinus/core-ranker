@@ -91,7 +91,7 @@ def get_sys_info() -> SysInfo:
                 case "model name":
                     sys_info.model_name = m.group(2).strip()
 
-    if (boost := read_int(POLICY_BASE / "boost")) is not None:
+    if (boost := read_int(Path("/sys/devices/system/cpu/cpufreq/boost"))) is not None:
         sys_info.boost = "Enabled" if boost == 1 else "Disabled"
     elif (no_turbo := read_int(CPU_BASE / "intel_pstate/no_turbo")) is not None:
         sys_info.boost = "Enabled" if no_turbo == 0 else "Disabled"
