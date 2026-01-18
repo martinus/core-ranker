@@ -24,21 +24,23 @@ POLICY_BASE = Path("/sys/devices/system/cpu/cpufreq/policy0")
 
 
 @dataclass
-class CpuInfo:
-    """Generic CPU information"""
+class SysInfo:
+    """Generic CPU information, with some system information"""
 
     model_name: str = "unknown"
     driver: str = "unknown"
     governor: str = "unknown"
     available_governors: tuple[str, ...] = ()
     boost: str = "unknown"
+    kernel_osrelease: str = "unknown"
+    kernel_version: str = "unknown"
 
     def __str__(self) -> str:
-        out = str()
-        out += f"{self.model_name}"
-        out += f"\nGovernor: {self.governor} ({', '.join(self.available_governors)})"
-        out += f"\nDriver:   {self.driver}"
-        out += f"\nTurbo:    {self.boost}"
+        out = f"CPU Model: {self.model_name}"
+        out += f"\nGovernor:  {self.governor} ({', '.join(self.available_governors)})"
+        out += f"\nTurbo:     {self.boost}"
+        out += f"\nDriver:    {self.driver}"
+        out += f"\nKernel:    {self.kernel_osrelease} {self.kernel_version}"
         return out
 
 
@@ -71,9 +73,9 @@ def read_int(path: Path) -> int | None:
     return None
 
 
-def get_cpu_info() -> CpuInfo:
+def get_sys_info() -> SysInfo:
     """Fetch CPU info data"""
-    cpu_info = CpuInfo(model_name="unknown")
+    sys_info = SysInfo()
 
     # /proc/cpuinfo
     pattern = re.compile(r"([^:\t]*)\s*: (.*)")
@@ -87,24 +89,30 @@ def get_cpu_info() -> CpuInfo:
 
             match m.group(1):
                 case "model name":
-                    cpu_info.model_name = m.group(2).strip()
+                    sys_info.model_name = m.group(2).strip()
 
     if (boost := read_int(POLICY_BASE / "boost")) is not None:
-        cpu_info.boost = "Enabled" if boost == 1 else "Disabled"
+        sys_info.boost = "Enabled" if boost == 1 else "Disabled"
     elif (no_turbo := read_int(CPU_BASE / "intel_pstate/no_turbo")) is not None:
-        cpu_info.boost = "Enabled" if no_turbo == 0 else "Disabled"
+        sys_info.boost = "Enabled" if no_turbo == 0 else "Disabled"
 
     if (governor := read_str(POLICY_BASE / "scaling_governor")) is not None:
-        cpu_info.governor = governor.strip()
+        sys_info.governor = governor.strip()
 
     if (governor := read_str(POLICY_BASE / "scaling_available_governors")) is not None:
-        cpu_info.available_governors = tuple(
+        sys_info.available_governors = tuple(
             [g.strip() for g in governor.strip().split(" ")]
         )
 
     if (driver := read_str(POLICY_BASE / "scaling_driver")) is not None:
-        cpu_info.driver = driver.strip()
-    return cpu_info
+        sys_info.driver = driver.strip()
+
+    if (osrelease := read_str(Path("/proc/sys/kernel/osrelease"))) is not None:
+        sys_info.kernel_osrelease = osrelease.strip()
+    if (version := read_str(Path("/proc/sys/kernel/version"))) is not None:
+        sys_info.kernel_version = version.strip()
+
+    return sys_info
 
 
 def get_core_cpus() -> list[CoreInfo]:
@@ -178,7 +186,7 @@ def cores_as_markdown(cores: list[CoreInfo]) -> str:
 
 def main() -> None:
     """Prints the full CPU information"""
-    cpu_info: CpuInfo = get_cpu_info()
+    sys_info: SysInfo = get_sys_info()
 
     cores: list[CoreInfo] = get_core_cpus()
     update_cores(cores)
@@ -186,7 +194,7 @@ def main() -> None:
     # Highest rank first, then ordered by siblings in increasing order"
     cores.sort(key=lambda core: (-core.rank, core.siblings))
 
-    print(cpu_info)
+    print(sys_info)
     print()
     print(cores_as_markdown(cores))
 
