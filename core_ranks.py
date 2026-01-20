@@ -143,12 +143,7 @@ def get_rank(cpu_path: Path) -> int:
     # Try Intel ITMT score
     if (rank := read_int(cpu_path / "topology/itmt_score")) is not None:
         return rank
-    # Try Intel base frequency (convert kHz to MHz)
-    if (freq := read_int(cpu_path / "cpufreq/base_frequency")) is not None:
-        return freq // 1000
-    # Fallback to core_id
-    if (rank := read_int(cpu_path / "topology/core_id")) is not None:
-        return rank
+    # fallback to a fixed number if we couldn't fetch it
     return 100
 
 
