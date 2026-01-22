@@ -1,15 +1,14 @@
-# core-ranker
+# core-ranker <!-- omit in toc -->
 
-Prints information about the system & CPU core rankings.
+Prints information about the system & CPU core rankings. 
 
-- [core-ranker](#core-ranker)
-  - [Example Outputs](#example-outputs)
-    - [13th Gen Intel(R) Core(TM) i9-13950HX](#13th-gen-intelr-coretm-i9-13950hx)
-    - [AMD EPYC 9354P 32-Core Processor](#amd-epyc-9354p-32-core-processor)
-    - [AMD Ryzen 5 5500GT with Radeon Graphics](#amd-ryzen-5-5500gt-with-radeon-graphics)
-    - [AMD Ryzen 9 7950X 16-Core Processor](#amd-ryzen-9-7950x-16-core-processor)
-    - [AMD Ryzen AI 7 350 w/ Radeon 860M](#amd-ryzen-ai-7-350-w-radeon-860m)
-    - [Raspberry Pi 4 Model B Rev 1.2](#raspberry-pi-4-model-b-rev-12)
+- [Example Outputs](#example-outputs)
+  - [13th Gen Intel(R) Core(TM) i9-13950HX](#13th-gen-intelr-coretm-i9-13950hx)
+  - [AMD EPYC 9354P 32-Core Processor](#amd-epyc-9354p-32-core-processor)
+  - [AMD Ryzen 5 5500GT with Radeon Graphics](#amd-ryzen-5-5500gt-with-radeon-graphics)
+  - [AMD Ryzen 9 7950X 16-Core Processor](#amd-ryzen-9-7950x-16-core-processor)
+  - [AMD Ryzen AI 7 350 w/ Radeon 860M](#amd-ryzen-ai-7-350-w-radeon-860m)
+  - [Raspberry Pi 4 Model B Rev 1.2](#raspberry-pi-4-model-b-rev-12)
 
 
 ## Example Outputs
