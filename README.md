@@ -7,6 +7,7 @@ Prints information about the system & CPU core rankings.
     - [13th Gen Intel(R) Core(TM) i9-13950HX](#13th-gen-intelr-coretm-i9-13950hx)
     - [AMD Ryzen 9 7950X 16-Core Processor](#amd-ryzen-9-7950x-16-core-processor)
     - [AMD EPYC 9354P 32-Core Processor](#amd-epyc-9354p-32-core-processor)
+    - [AMD Ryzen AI 7 350 w/ Radeon 860M](#amd-ryzen-ai-7-350-w-radeon-860m)
 
 
 ## Example Outputs
@@ -118,4 +119,24 @@ Rank | CPU IDs | MHz min | MHz max
  255 |  29, 61 |    1500 |    3800
  255 |  30, 62 |    1500 |    3800
  255 |  31, 63 |    1500 |    3800
+```
+
+### AMD Ryzen AI 7 350 w/ Radeon 860M
+```
+CPU Model: AMD Ryzen AI 7 350 w/ Radeon 860M
+Governor:  powersave (performance, powersave)
+Turbo:     Enabled
+Driver:    amd-pstate-epp
+Kernel:    6.18.5-200.fc43.x86_64 #1 SMP PREEMPT_DYNAMIC Sun Jan 11 17:09:32 UTC 2026
+
+Rank | CPU IDs | MHz min | MHz max
+----:|:--------|--------:|--------:
+ 214 |   6, 14 |     623 |    5090
+ 208 |   4, 12 |     623 |    5090
+ 202 |   0,  8 |     623 |    5090
+ 196 |   2, 10 |     623 |    5090
+ 135 |   1,  9 |     623 |    3506
+ 135 |   3, 11 |     623 |    3506
+ 135 |   5, 13 |     623 |    3506
+ 129 |   7, 15 |     623 |    3350
 ```
