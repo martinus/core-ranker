@@ -170,11 +170,11 @@ def update_cores(cores):
 def cores_as_markdown(cores: list[CoreInfo]) -> str:
     """Prints a nice markdown table for the information of all cores"""
     out = str()
-    out += "Rank | CPU IDs | MHz min | MHz max\n----:|:--------|--------:|--------:\n"
+    out += "Rank | CPU IDs | MHz min | MHz max\n----:|:--------|--------:|--------:"
     for core in cores:
         siblings_str = ", ".join([f"{sibling:>2}" for sibling in core.siblings])
         out += (
-            f"{core.rank:>4} |{siblings_str:>8} |{core.min_mhz:>8} |{core.max_mhz:>8}\n"
+            f"\n{core.rank:>4} |{siblings_str:>8} |{core.min_mhz:>8} |{core.max_mhz:>8}"
         )
     return out
 
