@@ -85,11 +85,15 @@ def get_sys_info() -> SysInfo:
 
             # reads until empty line (no match, then next processor follows)
             if m is None:
-                break
+                continue
 
             match m.group(1):
                 case "model name":
                     sys_info.model_name = m.group(2).strip()
+                    break
+                case "Model":  # on Raspberry Pi
+                    sys_info.model_name = m.group(2).strip()
+                    break
 
     if (boost := read_int(Path("/sys/devices/system/cpu/cpufreq/boost"))) is not None:
         sys_info.boost = "Enabled" if boost == 1 else "Disabled"
